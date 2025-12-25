@@ -8,28 +8,28 @@ import com.project.appointment.entity.User;
 import com.project.appointment.repository.UserRepository;
 import com.project.appointment.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
-    private final UserDetailsService userDetailsService;
     private final EmailService emailService;
     
     @Value("${app.url}")
@@ -47,7 +47,6 @@ public class AuthService {
             throw new RuntimeException("Email already exists");
         }
         
-        // Generate verification token
         String verificationToken = UUID.randomUUID().toString();
         LocalDateTime tokenExpiration = LocalDateTime.now().plusSeconds(verificationTokenExpiration / 1000);
         
@@ -62,15 +61,13 @@ public class AuthService {
                 .verificationTokenExpiresAt(tokenExpiration)
                 .build();
         
-        userRepository.save(user);
+        user = userRepository.save(user);
         
-        // Send verification email
         String verificationLink = appUrl + "/api/auth/verify-email?token=" + verificationToken;
         emailService.sendVerificationEmail(user.getEmail(), user.getFullName(), verificationLink);
         
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
-        String accessToken = jwtService.generateAccessToken(userDetails);
-        String refreshToken = jwtService.generateRefreshToken(userDetails);
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
         
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -80,7 +77,6 @@ public class AuthService {
     }
     
     public AuthResponse login(LoginRequest request) {
-        // Check if user exists and email is verified
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Invalid email or password"));
         
@@ -95,9 +91,8 @@ public class AuthService {
                 )
         );
         
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
-        String accessToken = jwtService.generateAccessToken(userDetails);
-        String refreshToken = jwtService.generateRefreshToken(userDetails);
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
         
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -108,17 +103,83 @@ public class AuthService {
     
     @Transactional
     public void verifyEmail(String token) {
-        User user = userRepository.findByVerificationToken(token)
-                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+        String normalizedToken = normalizeVerificationToken(token);
+        User user = userRepository.findByVerificationToken(normalizedToken)
+                .orElseThrow(() -> new RuntimeException(
+                        "Invalid verification token. If you already verified your email, this link won't work again. " +
+                                "Otherwise request a new one: POST /api/auth/resend-verification?email=you@example.com"
+                ));
+
+        // Make it idempotent: clicking the link twice shouldn't look like a mysterious failure.
+        if (user.isEmailVerified()) {
+            log.info("verifyEmail called for already verified userId={}", user.getId());
+            return;
+        }
+
+        if (user.getVerificationTokenExpiresAt() == null) {
+            throw new RuntimeException(
+                    "Verification token is missing/invalid. Please request a new one: " +
+                            "POST /api/auth/resend-verification?email=you@example.com"
+            );
+        }
         
         if (user.getVerificationTokenExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Verification token has expired");
+            throw new RuntimeException(
+                    "Verification token has expired. Please request a new one: " +
+                            "POST /api/auth/resend-verification?email=you@example.com"
+            );
         }
         
         user.setEmailVerified(true);
         user.setVerificationToken(null);
         user.setVerificationTokenExpiresAt(null);
         userRepository.save(user);
+    }
+
+    /**
+     * Users often paste the full verification URL into the token field (especially from Swagger),
+     * or tokens may contain spaces/quotes. This normalizes to the raw UUID string.
+     */
+    private String normalizeVerificationToken(String token) {
+        if (token == null) {
+            throw new RuntimeException("Verification token is required");
+        }
+        String t = token.trim();
+        if (t.isEmpty()) {
+            throw new RuntimeException("Verification token is required");
+        }
+
+        // If user pasted full URL (or partial) into token parameter, extract ?token=...
+        if (t.contains("token=") || t.startsWith("http://") || t.startsWith("https://")) {
+            try {
+                String extracted = UriComponentsBuilder.fromUriString(t)
+                        .build()
+                        .getQueryParams()
+                        .getFirst("token");
+                if (extracted != null && !extracted.isBlank()) {
+                    t = extracted.trim();
+                } else if (t.contains("token=")) {
+                    // fallback for non-URL strings
+                    t = t.substring(t.lastIndexOf("token=") + "token=".length());
+                    int amp = t.indexOf('&');
+                    if (amp >= 0) t = t.substring(0, amp);
+                    t = t.trim();
+                }
+            } catch (Exception ignored) {
+                // fallback below
+            }
+        }
+
+        // remove wrapping quotes that can appear when copy/pasting
+        if ((t.startsWith("\"") && t.endsWith("\"")) || (t.startsWith("'") && t.endsWith("'"))) {
+            t = t.substring(1, t.length() - 1).trim();
+        }
+
+        // sanity: token should look like UUID, but don't hard-fail if you change format later
+        if (t.length() > 255) {
+            throw new RuntimeException("Verification token format is invalid");
+        }
+        return t;
     }
     
     @Transactional
@@ -130,7 +191,6 @@ public class AuthService {
             throw new RuntimeException("Email already verified");
         }
         
-        // Generate new verification token
         String verificationToken = UUID.randomUUID().toString();
         LocalDateTime tokenExpiration = LocalDateTime.now().plusSeconds(verificationTokenExpiration / 1000);
         
@@ -138,7 +198,6 @@ public class AuthService {
         user.setVerificationTokenExpiresAt(tokenExpiration);
         userRepository.save(user);
         
-        // Send verification email
         String verificationLink = appUrl + "/api/auth/verify-email?token=" + verificationToken;
         emailService.sendVerificationEmail(user.getEmail(), user.getFullName(), verificationLink);
     }
@@ -148,7 +207,6 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        // Generate password reset token
         String resetToken = UUID.randomUUID().toString();
         LocalDateTime tokenExpiration = LocalDateTime.now().plusSeconds(passwordResetTokenExpiration / 1000);
         
@@ -156,7 +214,6 @@ public class AuthService {
         user.setPasswordResetTokenExpiresAt(tokenExpiration);
         userRepository.save(user);
         
-        // Send password reset email
         String resetLink = appUrl + "/api/auth/reset-password?token=" + resetToken;
         emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), resetLink);
     }
@@ -176,5 +233,3 @@ public class AuthService {
         userRepository.save(user);
     }
 }
-
-
