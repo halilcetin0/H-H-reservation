@@ -1,11 +1,14 @@
 package com.project.appointment.security;
 
+import com.project.appointment.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
@@ -33,6 +36,10 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
     
+    public Long extractUserId(String token) {
+        return extractClaim(token, claims -> claims.get("userId", Long.class));
+    }
+    
     public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
@@ -54,14 +61,17 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
     
-    public String generateAccessToken(UserDetails userDetails) {
+    public String generateAccessToken(User user) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername(), accessTokenExpiration);
+        claims.put("userId", user.getId());
+        claims.put("role", user.getRole().name());
+        return createToken(claims, user.getEmail(), accessTokenExpiration);
     }
     
-    public String generateRefreshToken(UserDetails userDetails) {
+    public String generateRefreshToken(User user) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername(), refreshTokenExpiration);
+        claims.put("userId", user.getId());
+        return createToken(claims, user.getEmail(), refreshTokenExpiration);
     }
     
     private String createToken(Map<String, Object> claims, String subject, Long expiration) {
@@ -77,6 +87,19 @@ public class JwtService {
     public Boolean validateToken(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    }
+    
+    // Helper method to resolve token from HTTP request
+    public String resolveToken(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+    
+    public Long getUserIdFromToken(String token) {
+        return extractUserId(token);
     }
 }
 

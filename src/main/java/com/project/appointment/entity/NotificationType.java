@@ -1,0 +1,13 @@
+package com.project.appointment.entity;
+
+public enum NotificationType {
+    APPOINTMENT_CREATED,
+    APPOINTMENT_CONFIRMED,
+    APPOINTMENT_CANCELLED,
+    APPOINTMENT_REMINDER,
+    APPOINTMENT_COMPLETED,
+    REVIEW_RECEIVED,
+    BUSINESS_UPDATE,
+    SYSTEM_NOTIFICATION
+}
+

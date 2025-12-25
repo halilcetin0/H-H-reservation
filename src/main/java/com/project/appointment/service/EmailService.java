@@ -93,5 +93,14 @@ public class EmailService {
         );
         sendEmail(to, "Appointment Cancelled", "appointment-cancellation", variables);
     }
+    
+    public void sendStaffInvitationEmail(String to, String businessName, String token) {
+        String invitationLink = "http://localhost:8080/api/staff-invitations/accept?token=" + token;
+        Map<String, Object> variables = Map.of(
+            "businessName", businessName,
+            "invitationLink", invitationLink
+        );
+        sendEmail(to, "Staff Invitation - " + businessName, "staff-invitation", variables);
+    }
 }
 

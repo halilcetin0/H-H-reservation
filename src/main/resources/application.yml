@@ -3,24 +3,26 @@ spring:
     name: appointment-management-system
   
   datasource:
-    url: jdbc:mysql://localhost:3306/appointment_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: root
-    password: james1232
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
+    username: postgres.jtzavxwqwrizshtbxwkb
+    password: melOs4-99-42
+    driver-class-name: org.postgresql.Driver
   
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
   
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    validate-on-migrate: false
+    out-of-order: true
   
   data:
     redis:
@@ -49,17 +51,17 @@ spring:
           writetimeout: 5000
 
 jwt:
-  secret: gorilemre42
-  access-token-expiration: 900000  # 15 minutes in milliseconds
-  refresh-token-expiration: 604800000  # 7 days in milliseconds
+  secret: 936bb8d6e112f623ad6c5a97c0fd869d640d4e4720ee21d22b026cc6266ebaff
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
 
 app:
   name: Smart Appointment Management System
   url: ${APP_URL:http://localhost:8080}
   email:
     from: ${MAIL_FROM:noreply@appointment.com}
-    verification-token-expiration: 86400000  # 24 hours
-    password-reset-token-expiration: 3600000  # 1 hour
+    verification-token-expiration: 86400000
+    password-reset-token-expiration: 3600000
 
 server:
   port: 8080
