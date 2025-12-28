@@ -86,7 +86,9 @@ public class AppointmentService {
                 .startTime(request.getStartTime())
                 .endTime(endTime)
                 .price(service.getPrice())
-                .status(AppointmentStatus.CONFIRMED)
+                .status(AppointmentStatus.PENDING) // Başlangıçta PENDING - onay bekliyor
+                .ownerApproved(false)
+                .employeeApproved(false)
                 .paymentStatus(PaymentStatus.PENDING)
                 .notes(request.getNotes())
                 .build();
@@ -137,6 +139,76 @@ public class AppointmentService {
         
         appointment = appointmentRepository.save(appointment);
         log.info("Appointment {} status changed from {} to {}", appointmentId, oldStatus, status);
+        
+        return mapToResponse(appointment);
+    }
+    
+    @Transactional
+    public AppointmentResponse approveAppointmentByOwner(Long appointmentId, Long userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+        
+        // Verify user is the business owner
+        if (!appointment.getBusiness().getOwnerId().equals(userId)) {
+            throw new BusinessException("You don't have permission to approve this appointment");
+        }
+        
+        appointment.setOwnerApproved(true);
+        
+        // If both owner and employee approved, confirm the appointment
+        if (appointment.getOwnerApproved() && appointment.getEmployeeApproved()) {
+            appointment.setStatus(AppointmentStatus.CONFIRMED);
+            try {
+                String details = formatAppointmentDetails(appointment);
+                emailService.sendAppointmentConfirmationEmail(
+                        appointment.getCustomer().getEmail(),
+                        appointment.getCustomer().getFullName(),
+                        details
+                );
+            } catch (Exception e) {
+                log.error("Failed to send confirmation email", e);
+            }
+        }
+        
+        appointment = appointmentRepository.save(appointment);
+        log.info("Appointment {} approved by owner {}", appointmentId, userId);
+        
+        return mapToResponse(appointment);
+    }
+    
+    @Transactional
+    public AppointmentResponse approveAppointmentByEmployee(Long appointmentId, Long userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+        
+        // Verify user is the assigned employee
+        if (appointment.getEmployee() == null || appointment.getEmployee().getUser() == null) {
+            throw new BusinessException("Appointment does not have an assigned employee");
+        }
+        
+        if (!appointment.getEmployee().getUser().getId().equals(userId)) {
+            throw new BusinessException("You don't have permission to approve this appointment");
+        }
+        
+        appointment.setEmployeeApproved(true);
+        
+        // If both owner and employee approved, confirm the appointment
+        if (appointment.getOwnerApproved() && appointment.getEmployeeApproved()) {
+            appointment.setStatus(AppointmentStatus.CONFIRMED);
+            try {
+                String details = formatAppointmentDetails(appointment);
+                emailService.sendAppointmentConfirmationEmail(
+                        appointment.getCustomer().getEmail(),
+                        appointment.getCustomer().getFullName(),
+                        details
+                );
+            } catch (Exception e) {
+                log.error("Failed to send confirmation email", e);
+            }
+        }
+        
+        appointment = appointmentRepository.save(appointment);
+        log.info("Appointment {} approved by employee {}", appointmentId, userId);
         
         return mapToResponse(appointment);
     }
@@ -194,8 +266,14 @@ public class AppointmentService {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
         
-        if (!appointment.getCustomer().getId().equals(userId) &&
-            !appointment.getBusiness().getOwnerId().equals(userId)) {
+        // Check if user is customer, business owner, or assigned employee
+        boolean isCustomer = appointment.getCustomer().getId().equals(userId);
+        boolean isOwner = appointment.getBusiness().getOwnerId().equals(userId);
+        boolean isEmployee = appointment.getEmployee() != null && 
+                            appointment.getEmployee().getUser() != null &&
+                            appointment.getEmployee().getUser().getId().equals(userId);
+        
+        if (!isCustomer && !isOwner && !isEmployee) {
             throw new BusinessException("You don't have permission to view this appointment");
         }
         
@@ -271,24 +349,33 @@ public class AppointmentService {
     }
     
     private AppointmentResponse mapToResponse(Appointment appointment) {
-        return AppointmentResponse.builder()
+        AppointmentResponse.AppointmentResponseBuilder builder = AppointmentResponse.builder()
                 .id(appointment.getId())
                 .customerId(appointment.getCustomer().getId())
                 .customerName(appointment.getCustomer().getFullName())
                 .businessId(appointment.getBusiness().getId())
                 .businessName(appointment.getBusiness().getName())
-                .serviceId(appointment.getService().getId())
-                .serviceName(appointment.getService().getName())
-                .employeeId(appointment.getEmployee().getId())
-                .employeeName(appointment.getEmployee().getName())
                 .startTime(appointment.getStartTime())
                 .endTime(appointment.getEndTime())
                 .price(appointment.getPrice())
                 .paymentStatus(appointment.getPaymentStatus())
                 .status(appointment.getStatus())
+                .ownerApproved(appointment.getOwnerApproved())
+                .employeeApproved(appointment.getEmployeeApproved())
                 .notes(appointment.getNotes())
                 .cancellationReason(appointment.getCancellationReason())
-                .createdAt(appointment.getCreatedAt())
-                .build();
+                .createdAt(appointment.getCreatedAt());
+        
+        if (appointment.getService() != null) {
+            builder.serviceId(appointment.getService().getId())
+                   .serviceName(appointment.getService().getName());
+        }
+        
+        if (appointment.getEmployee() != null) {
+            builder.employeeId(appointment.getEmployee().getId())
+                   .employeeName(appointment.getEmployee().getName());
+        }
+        
+        return builder.build();
     }
 }

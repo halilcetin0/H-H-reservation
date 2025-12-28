@@ -59,6 +59,14 @@ public class Appointment {
     @Builder.Default
     private AppointmentStatus status = AppointmentStatus.PENDING;
     
+    @Column(name = "owner_approved", nullable = false)
+    @Builder.Default
+    private Boolean ownerApproved = false;
+    
+    @Column(name = "employee_approved", nullable = false)
+    @Builder.Default
+    private Boolean employeeApproved = false;
+    
     @Column(name = "cancellation_reason")
     private String cancellationReason;
     

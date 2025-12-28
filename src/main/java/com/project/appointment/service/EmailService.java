@@ -28,6 +28,9 @@ public class EmailService {
     @Value("${app.name}")
     private String appName;
     
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
+    
     @Async
     public void sendEmail(String to, String subject, String templateName, Map<String, Object> variables) {
         try {
@@ -95,7 +98,7 @@ public class EmailService {
     }
     
     public void sendStaffInvitationEmail(String to, String businessName, String token) {
-        String invitationLink = "http://localhost:8080/api/staff-invitations/accept?token=" + token;
+        String invitationLink = frontendUrl + "/accept-invitation?token=" + token;
         Map<String, Object> variables = Map.of(
             "businessName", businessName,
             "invitationLink", invitationLink

@@ -35,7 +35,12 @@ public class EmployeeService {
         Business business = businessRepository.findById(businessId)
                 .orElseThrow(() -> new BusinessException("Business not found"));
         
+        log.debug("Creating employee for businessId: {}, ownerId from token: {}, business ownerId: {}", 
+                businessId, ownerId, business.getOwnerId());
+        
         if (!business.getOwnerId().equals(ownerId)) {
+            log.warn("Permission denied: User {} tried to add employee to business {} owned by {}", 
+                    ownerId, businessId, business.getOwnerId());
             throw new BusinessException("You don't have permission to add employees to this business");
         }
         
@@ -44,6 +49,7 @@ public class EmployeeService {
                 .name(request.getName())
                 .email(request.getEmail())
                 .phone(request.getPhone())
+                .title(request.getTitle())
                 .build();
         
         employee = employeeRepository.save(employee);
@@ -94,6 +100,7 @@ public class EmployeeService {
         if (request.getName() != null) employee.setName(request.getName());
         if (request.getEmail() != null) employee.setEmail(request.getEmail());
         if (request.getPhone() != null) employee.setPhone(request.getPhone());
+        if (request.getTitle() != null) employee.setTitle(request.getTitle());
         
         employee = employeeRepository.save(employee);
         log.info("Employee updated: {}", employee.getId());
@@ -110,20 +117,34 @@ public class EmployeeService {
             throw new BusinessException("You don't have permission to delete this employee");
         }
         
+        // Check if employee has active appointments
+        Long activeAppointmentCount = appointmentRepository.countByEmployeeId(employeeId);
+        if (activeAppointmentCount != null && activeAppointmentCount > 0) {
+            throw new BusinessException("Cannot delete employee with active appointments. Please cancel or complete appointments first.");
+        }
+        
         employee.setIsActive(false);
         employeeRepository.save(employee);
         log.info("Employee deleted (soft): {}", employeeId);
     }
     
     private EmployeeResponse mapToResponse(Employee employee) {
-        return EmployeeResponse.builder()
+        EmployeeResponse.EmployeeResponseBuilder builder = EmployeeResponse.builder()
                 .id(employee.getId())
                 .businessId(employee.getBusiness().getId())
                 .name(employee.getName())
                 .email(employee.getEmail())
                 .phone(employee.getPhone())
+                .title(employee.getTitle())
+                .specialization(employee.getTitle()) // Using title as specialization for now
                 .isActive(employee.getIsActive())
                 .createdAt(employee.getCreatedAt())
-                .build();
+                .updatedAt(employee.getUpdatedAt());
+        
+        if (employee.getUser() != null) {
+            builder.userId(employee.getUser().getId());
+        }
+        
+        return builder.build();
     }
 }

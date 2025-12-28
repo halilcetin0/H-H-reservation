@@ -29,6 +29,8 @@ public class AppointmentResponse {
     private BigDecimal price;
     private PaymentStatus paymentStatus;
     private AppointmentStatus status;
+    private Boolean ownerApproved;
+    private Boolean employeeApproved;
     private String notes;
     private String cancellationReason;
     private ReviewResponse review;

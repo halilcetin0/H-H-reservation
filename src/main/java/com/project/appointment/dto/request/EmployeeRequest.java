@@ -13,16 +13,20 @@ import lombok.NoArgsConstructor;
 public class EmployeeRequest {
     
     @NotBlank(message = "Employee name is required")
-    @Size(max = 255)
+    @Size(min = 2, max = 255, message = "Name must be between 2 and 255 characters")
     private String name;
     
+    @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
     private String email;
     
-    @Pattern(regexp = "^[0-9]{10,15}$", message = "Invalid phone number")
-    private String phone;
+    // Phone is optional - validate format only if provided
+    @Pattern(regexp = "^$|^[0-9+\\s()-]{10,20}$", message = "Invalid phone number format (10-20 digits)")
+    private String phone; // Optional
     
     private String title;
+    
+    private String specialization;
     
     private String imageUrl;
 }

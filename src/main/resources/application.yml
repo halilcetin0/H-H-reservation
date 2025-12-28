@@ -3,10 +3,21 @@ spring:
     name: appointment-management-system
   
   datasource:
+    # Supabase Direct Connection (port 5432) - Pooler yerine direct connection
     url: jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
     username: postgres.jtzavxwqwrizshtbxwkb
     password: melOs4-99-42
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # Supabase ücretsiz plan: max 4 direct connections
+      maximum-pool-size: 2
+      minimum-idle: 1
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 900000
+      leak-detection-threshold: 60000
+      pool-name: AppointmentHikariPool
+      register-mbeans: true
   
   jpa:
     hibernate:
@@ -58,6 +69,7 @@ jwt:
 app:
   name: Smart Appointment Management System
   url: ${APP_URL:http://localhost:8080}
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
   email:
     from: ${MAIL_FROM:noreply@appointment.com}
     verification-token-expiration: 86400000
