@@ -26,6 +26,10 @@ public class Employee {
     @JoinColumn(name = "business_id", nullable = false)
     private Business business;
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user; // Kullanıcı hesabıyla ilişkilendirme
+    
     @Column(nullable = false)
     private String name;
     

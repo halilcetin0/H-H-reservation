@@ -12,26 +12,32 @@ import lombok.NoArgsConstructor;
 @Builder
 public class BusinessRequest {
     
-    @NotBlank(message = "Business name is required")
-    @Size(max = 255, message = "Name must not exceed 255 characters")
+    @NotBlank(message = "İşletme adı zorunludur")
+    @Size(min = 2, max = 255, message = "İşletme adı 2-255 karakter arasında olmalıdır")
     private String name;
     
-    @Size(max = 5000, message = "Description must not exceed 5000 characters")
+    @Size(max = 5000, message = "Açıklama 5000 karakteri geçemez")
     private String description;
     
+    @NotBlank(message = "Kategori zorunludur")
     private String category;
     
-    @Size(max = 500, message = "Address must not exceed 500 characters")
+    @NotBlank(message = "Adres zorunludur")
+    @Size(max = 500, message = "Adres 500 karakteri geçemez")
     private String address;
     
+    @NotBlank(message = "Şehir zorunludur")
     private String city;
     
+    @NotBlank(message = "İşletme tipi zorunludur")
     private String businessType;
     
-    @Pattern(regexp = "^[0-9]{10,15}$", message = "Invalid phone number")
+    @NotBlank(message = "Telefon zorunludur")
+    @Pattern(regexp = "^[0-9+\\s()-]{10,20}$", message = "Geçersiz telefon numarası formatı")
     private String phone;
     
-    @Email(message = "Invalid email format")
+    @NotBlank(message = "Email zorunludur")
+    @Email(message = "Geçersiz email formatı")
     private String email;
     
     private String imageUrl;

@@ -6,6 +6,7 @@ import com.project.appointment.entity.Business;
 import com.project.appointment.entity.Service;
 import com.project.appointment.exception.BusinessException;
 import com.project.appointment.exception.ResourceNotFoundException;
+import com.project.appointment.repository.AppointmentRepository;
 import com.project.appointment.repository.BusinessRepository;
 import com.project.appointment.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,13 +24,19 @@ public class ServiceService {
     
     private final ServiceRepository serviceRepository;
     private final BusinessRepository businessRepository;
+    private final AppointmentRepository appointmentRepository;
     
     @Transactional
     public ServiceResponse createService(Long businessId, ServiceRequest request, Long ownerId) {
         Business business = businessRepository.findById(businessId)
                 .orElseThrow(() -> new BusinessException("Business not found"));
         
+        log.debug("Creating service for businessId: {}, ownerId from token: {}, business ownerId: {}", 
+                businessId, ownerId, business.getOwnerId());
+        
         if (!business.getOwnerId().equals(ownerId)) {
+            log.warn("Permission denied: User {} tried to add service to business {} owned by {}", 
+                    ownerId, businessId, business.getOwnerId());
             throw new BusinessException("You don't have permission to add services to this business");
         }
         
@@ -89,6 +96,12 @@ public class ServiceService {
             throw new BusinessException("You don't have permission to delete this service");
         }
         
+        // Check if service has active appointments
+        Long activeAppointmentCount = appointmentRepository.countByServiceId(serviceId);
+        if (activeAppointmentCount != null && activeAppointmentCount > 0) {
+            throw new BusinessException("Cannot delete service with active appointments. Please cancel or complete appointments first.");
+        }
+        
         service.setIsActive(false);
         serviceRepository.save(service);
         log.info("Service deleted (soft): {}", serviceId);
@@ -104,6 +117,7 @@ public class ServiceService {
                 .price(service.getPrice())
                 .isActive(service.getIsActive())
                 .createdAt(service.getCreatedAt())
+                .updatedAt(service.getUpdatedAt())
                 .build();
     }
 }

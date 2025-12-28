@@ -2,6 +2,7 @@ package com.project.appointment.controller;
 
 import com.project.appointment.dto.request.LoginRequest;
 import com.project.appointment.dto.request.RegisterRequest;
+import com.project.appointment.dto.request.ResetPasswordRequest;
 import com.project.appointment.dto.response.ApiResponse;
 import com.project.appointment.dto.response.AuthResponse;
 import com.project.appointment.service.AuthService;
@@ -49,11 +50,15 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(null, "Password reset email sent"));
     }
     
+    @GetMapping("/validate-reset-token")
+    public ResponseEntity<ApiResponse<Boolean>> validateResetToken(@RequestParam String token) {
+        boolean isValid = authService.validateResetToken(token);
+        return ResponseEntity.ok(ApiResponse.success(isValid, isValid ? "Token is valid" : "Token is invalid or expired"));
+    }
+    
     @PostMapping("/reset-password")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(
-            @RequestParam String token,
-            @RequestParam String newPassword) {
-        authService.resetPassword(token, newPassword);
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.getToken(), request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.success(null, "Password reset successfully"));
     }
 }

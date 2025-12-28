@@ -99,7 +99,14 @@ public class JwtService {
     }
     
     public Long getUserIdFromToken(String token) {
-        return extractUserId(token);
+        if (token == null || token.isEmpty()) {
+            return null;
+        }
+        try {
+            return extractUserId(token);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
 

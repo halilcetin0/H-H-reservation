@@ -1,5 +1,6 @@
 package com.project.appointment.service;
 
+import com.project.appointment.dto.request.BatchWorkScheduleRequest;
 import com.project.appointment.dto.request.WorkScheduleRequest;
 import com.project.appointment.dto.response.WorkScheduleResponse;
 import com.project.appointment.entity.Employee;
@@ -89,6 +90,43 @@ public class WorkScheduleService {
         log.info("Work schedule deleted: {}", scheduleId);
     }
     
+    @Transactional
+    public List<WorkScheduleResponse> updateEmployeeSchedules(Long employeeId, BatchWorkScheduleRequest request, Long ownerId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+        
+        if (!employee.getBusiness().getOwnerId().equals(ownerId)) {
+            throw new BusinessException("You don't have permission to update schedules for this employee");
+        }
+        
+        // Delete existing schedules for this employee
+        workScheduleRepository.deleteByEmployeeId(employeeId);
+        
+        // Create new schedules
+        List<WorkSchedule> newSchedules = request.getSchedules().stream()
+                .filter(item -> item.getIsAvailable() != null && item.getIsAvailable())
+                .map(item -> {
+                    if (item.getStartTime() == null || item.getEndTime() == null) {
+                        throw new BusinessException("Start time and end time are required when isAvailable is true");
+                    }
+                    return WorkSchedule.builder()
+                            .employee(employee)
+                            .dayOfWeek(item.getDayOfWeek())
+                            .startTime(item.getStartTime())
+                            .endTime(item.getEndTime())
+                            .isActive(true)
+                            .build();
+                })
+                .collect(Collectors.toList());
+        
+        List<WorkSchedule> savedSchedules = workScheduleRepository.saveAll(newSchedules);
+        log.info("Updated {} schedules for employee: {}", savedSchedules.size(), employeeId);
+        
+        return savedSchedules.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
     private WorkScheduleResponse mapToResponse(WorkSchedule schedule) {
         return WorkScheduleResponse.builder()
                 .id(schedule.getId())
@@ -96,7 +134,7 @@ public class WorkScheduleService {
                 .dayOfWeek(schedule.getDayOfWeek())
                 .startTime(schedule.getStartTime())
                 .endTime(schedule.getEndTime())
-                .isActive(schedule.getIsActive())
+                .isAvailable(schedule.getIsActive())
                 .build();
     }
 }

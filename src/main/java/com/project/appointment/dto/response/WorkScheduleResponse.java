@@ -18,6 +18,6 @@ public class WorkScheduleResponse {
     private DayOfWeek dayOfWeek;
     private LocalTime startTime;
     private LocalTime endTime;
-    private Boolean isActive;
+    private Boolean isAvailable; // Maps to isActive in entity
 }
 

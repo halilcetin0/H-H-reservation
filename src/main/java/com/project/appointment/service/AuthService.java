@@ -35,6 +35,9 @@ public class AuthService {
     @Value("${app.url}")
     private String appUrl;
     
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+    
     @Value("${app.email.verification-token-expiration}")
     private long verificationTokenExpiration;
     
@@ -214,14 +217,40 @@ public class AuthService {
         user.setPasswordResetTokenExpiresAt(tokenExpiration);
         userRepository.save(user);
         
-        String resetLink = appUrl + "/api/auth/reset-password?token=" + resetToken;
+        // Frontend URL'ine yönlendir
+        String resetLink = frontendUrl + "/reset-password?token=" + resetToken;
         emailService.sendPasswordResetEmail(user.getEmail(), user.getFullName(), resetLink);
+    }
+    
+    public boolean validateResetToken(String token) {
+        try {
+            User user = userRepository.findByPasswordResetToken(token)
+                    .orElse(null);
+            
+            if (user == null) {
+                return false;
+            }
+            
+            if (user.getPasswordResetTokenExpiresAt() == null || 
+                user.getPasswordResetTokenExpiresAt().isBefore(LocalDateTime.now())) {
+                return false;
+            }
+            
+            return true;
+        } catch (Exception e) {
+            log.error("Error validating reset token", e);
+            return false;
+        }
     }
     
     @Transactional
     public void resetPassword(String token, String newPassword) {
         User user = userRepository.findByPasswordResetToken(token)
                 .orElseThrow(() -> new RuntimeException("Invalid password reset token"));
+        
+        if (user.getPasswordResetTokenExpiresAt() == null) {
+            throw new RuntimeException("Password reset token is invalid");
+        }
         
         if (user.getPasswordResetTokenExpiresAt().isBefore(LocalDateTime.now())) {
             throw new RuntimeException("Password reset token has expired");

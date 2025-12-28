@@ -16,5 +16,7 @@ public interface WorkScheduleRepository extends JpaRepository<WorkSchedule, Long
     Optional<WorkSchedule> findByEmployeeIdAndDayOfWeek(Long employeeId, DayOfWeek dayOfWeek);
     
     boolean existsByEmployeeIdAndDayOfWeek(Long employeeId, DayOfWeek dayOfWeek);
+    
+    void deleteByEmployeeId(Long employeeId);
 }
 

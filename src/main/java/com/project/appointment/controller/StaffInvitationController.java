@@ -1,5 +1,6 @@
 package com.project.appointment.controller;
 
+import com.project.appointment.dto.response.ApiResponse;
 import com.project.appointment.entity.StaffInvitation;
 import com.project.appointment.security.JwtService;
 import com.project.appointment.service.StaffInvitationService;
@@ -11,7 +12,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/staff-invitations")
@@ -23,32 +23,51 @@ public class StaffInvitationController {
     
     @PostMapping
     @PreAuthorize("hasRole('BUSINESS_OWNER')")
-    public ResponseEntity<StaffInvitation> sendInvitation(
+    public ResponseEntity<ApiResponse<StaffInvitation>> sendInvitation(
             @RequestParam Long businessId,
             @RequestParam String email,
             HttpServletRequest req) {
         Long ownerId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
-        return ResponseEntity.status(HttpStatus.CREATED).body(invitationService.sendInvitation(businessId, email, ownerId));
+        StaffInvitation invitation = invitationService.sendInvitation(businessId, email, ownerId);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(invitation, "Çalışan davetiyesi başarıyla gönderildi"));
     }
     
     @PostMapping("/accept")
-    public ResponseEntity<Map<String, String>> acceptInvitation(@RequestParam String token) {
-        invitationService.acceptInvitation(token);
-        return ResponseEntity.ok(Map.of("message", "Invitation accepted successfully"));
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Object>> acceptInvitation(
+            @RequestParam String token,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Kullanıcı kimlik doğrulaması yapılmadı"));
+        }
+        invitationService.acceptInvitation(token, userId);
+        return ResponseEntity.ok(ApiResponse.success(null, "Davetiye başarıyla kabul edildi. Artık bu işletmede çalışan olarak görev yapabilirsiniz."));
     }
     
     @PostMapping("/reject")
-    public ResponseEntity<Map<String, String>> rejectInvitation(@RequestParam String token) {
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Object>> rejectInvitation(
+            @RequestParam String token,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Kullanıcı kimlik doğrulaması yapılmadı"));
+        }
         invitationService.rejectInvitation(token);
-        return ResponseEntity.ok(Map.of("message", "Invitation rejected"));
+        return ResponseEntity.ok(ApiResponse.success(null, "Davetiye reddedildi"));
     }
     
     @GetMapping
     @PreAuthorize("hasRole('BUSINESS_OWNER')")
-    public ResponseEntity<List<StaffInvitation>> getBusinessInvitations(
+    public ResponseEntity<ApiResponse<List<StaffInvitation>>> getBusinessInvitations(
             @RequestParam Long businessId,
             HttpServletRequest req) {
         Long ownerId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
-        return ResponseEntity.ok(invitationService.getBusinessInvitations(businessId, ownerId));
+        List<StaffInvitation> invitations = invitationService.getBusinessInvitations(businessId, ownerId);
+        return ResponseEntity.ok(ApiResponse.success(invitations, "Davetiyeler başarıyla getirildi"));
     }
 }

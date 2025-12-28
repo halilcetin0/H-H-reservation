@@ -62,7 +62,7 @@ public class StaffInvitationService {
     }
     
     @Transactional
-    public void acceptInvitation(String token) {
+    public void acceptInvitation(String token, Long userId) {
         StaffInvitation invitation = invitationRepository.findByToken(token)
                 .orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
         
@@ -77,21 +77,44 @@ public class StaffInvitationService {
             throw new BusinessException("Invitation has expired");
         }
         
-        // Create employee
+        // Get user account
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        
+        // Verify email matches
+        if (!user.getEmail().equalsIgnoreCase(invitation.getEmail())) {
+            throw new BusinessException("Invitation email does not match your account email");
+        }
+        
+        // Check if user is already an employee for this business
+        employeeRepository.findByBusinessIdAndUserId(invitation.getBusiness().getId(), userId)
+                .ifPresent(emp -> {
+                    throw new BusinessException("You are already an employee for this business");
+                });
+        
+        // Create employee and link with user account
         Employee employee = Employee.builder()
                 .business(invitation.getBusiness())
+                .user(user)
                 .email(invitation.getEmail())
-                .name("") // To be updated by employee
-                .phone("") // To be updated by employee
+                .name(user.getFullName()) // Use user's full name
+                .phone(user.getPhone()) // Use user's phone if available
+                .isActive(true)
                 .build();
         
-        employeeRepository.save(employee);
+        employee = employeeRepository.save(employee);
+        
+        // Update user role to STAFF if not already
+        if (user.getRole() != Role.STAFF && user.getRole() != Role.BUSINESS_OWNER && user.getRole() != Role.ADMIN) {
+            user.setRole(Role.STAFF);
+            userRepository.save(user);
+        }
         
         // Update invitation status
         invitation.setStatus(InvitationStatus.ACCEPTED);
         invitationRepository.save(invitation);
         
-        log.info("Staff invitation accepted: {}", token);
+        log.info("Staff invitation accepted by user {} for business {}", userId, invitation.getBusiness().getId());
     }
     
     @Transactional

@@ -19,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -48,6 +49,24 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.updateAppointmentStatus(id, status, userId));
     }
     
+    @PostMapping("/{id}/approve/owner")
+    @PreAuthorize("hasRole('BUSINESS_OWNER')")
+    public ResponseEntity<AppointmentResponse> approveByOwner(
+            @PathVariable Long id,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        return ResponseEntity.ok(appointmentService.approveAppointmentByOwner(id, userId));
+    }
+    
+    @PostMapping("/{id}/approve/employee")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<AppointmentResponse> approveByEmployee(
+            @PathVariable Long id,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        return ResponseEntity.ok(appointmentService.approveAppointmentByEmployee(id, userId));
+    }
+    
     @PostMapping("/search")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<AppointmentResponse>> searchAppointments(
@@ -70,6 +89,41 @@ public class AppointmentController {
     public ResponseEntity<AppointmentResponse> getAppointmentById(@PathVariable Long id, HttpServletRequest req) {
         Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
         return ResponseEntity.ok(appointmentService.getAppointmentById(id, userId));
+    }
+    
+    @GetMapping
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> getAppointments(
+            @RequestParam(required = false) Long businessId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        
+        // If businessId is provided and user is business owner, return business appointments
+        if (businessId != null) {
+            try {
+                return ResponseEntity.ok(appointmentService.getBusinessAppointments(businessId, userId, PageRequest.of(page, size)));
+            } catch (Exception e) {
+                // If user is not the owner, fall through to return user appointments
+            }
+        }
+        
+        // Return user's appointments as a page
+        List<AppointmentResponse> userAppointments = appointmentService.getUserAppointments(userId);
+        int start = page * size;
+        int end = Math.min(start + size, userAppointments.size());
+        List<AppointmentResponse> pagedAppointments = start < userAppointments.size() 
+            ? userAppointments.subList(start, end) 
+            : new ArrayList<>();
+        
+        Page<AppointmentResponse> appointmentPage = new org.springframework.data.domain.PageImpl<>(
+            pagedAppointments,
+            PageRequest.of(page, size),
+            userAppointments.size()
+        );
+        
+        return ResponseEntity.ok(appointmentPage);
     }
     
     @GetMapping("/my")

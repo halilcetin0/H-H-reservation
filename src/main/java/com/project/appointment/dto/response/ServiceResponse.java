@@ -21,5 +21,6 @@ public class ServiceResponse {
     private BigDecimal price;
     private Boolean isActive;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }
 
