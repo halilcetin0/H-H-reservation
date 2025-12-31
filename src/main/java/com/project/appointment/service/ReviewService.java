@@ -11,8 +11,12 @@ import com.project.appointment.repository.AppointmentRepository;
 import com.project.appointment.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -58,6 +62,55 @@ public class ReviewService {
         Review review = reviewRepository.findByAppointmentId(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
         return mapToResponse(review);
+    }
+    
+    public List<ReviewResponse> getUserReviews(Long userId) {
+        return reviewRepository.findByCustomerId(userId)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(java.util.stream.Collectors.toList());
+    }
+    
+    
+    @Transactional
+    public ReviewResponse updateReview(Long reviewId, ReviewRequest request, Long userId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        
+        if (!review.getCustomer().getId().equals(userId)) {
+            throw new BusinessException("You can only update your own reviews");
+        }
+        
+        if (request.getRating() != null) {
+            review.setRating(request.getRating());
+        }
+        
+        if (request.getComment() != null) {
+            review.setComment(request.getComment());
+        }
+        
+        review = reviewRepository.save(review);
+        log.info("Review updated: {} by user: {}", reviewId, userId);
+        
+        return mapToResponse(review);
+    }
+    
+    @Transactional
+    public void deleteReview(Long reviewId, Long userId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        
+        if (!review.getCustomer().getId().equals(userId)) {
+            throw new BusinessException("You can only delete your own reviews");
+        }
+        
+        reviewRepository.delete(review);
+        log.info("Review deleted: {} by user: {}", reviewId, userId);
+    }
+    
+    public Page<ReviewResponse> getBusinessReviews(Long businessId, Pageable pageable) {
+        return reviewRepository.findByBusinessId(businessId, pageable)
+                .map(this::mapToResponse);
     }
     
     private ReviewResponse mapToResponse(Review review) {

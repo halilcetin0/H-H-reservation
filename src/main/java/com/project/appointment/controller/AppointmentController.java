@@ -2,6 +2,7 @@ package com.project.appointment.controller;
 
 import com.project.appointment.dto.request.AppointmentRequest;
 import com.project.appointment.dto.request.AppointmentSearchRequest;
+import com.project.appointment.dto.response.ApiResponse;
 import com.project.appointment.dto.response.AppointmentResponse;
 import com.project.appointment.dto.response.AvailableSlotResponse;
 import com.project.appointment.entity.AppointmentStatus;
@@ -49,7 +50,7 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.updateAppointmentStatus(id, status, userId));
     }
     
-    @PostMapping("/{id}/approve/owner")
+    @PutMapping("/{id}/approve/owner")
     @PreAuthorize("hasRole('BUSINESS_OWNER')")
     public ResponseEntity<AppointmentResponse> approveByOwner(
             @PathVariable Long id,
@@ -58,13 +59,41 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.approveAppointmentByOwner(id, userId));
     }
     
-    @PostMapping("/{id}/approve/employee")
+    @PutMapping("/{id}/reject/owner")
+    @PreAuthorize("hasRole('BUSINESS_OWNER')")
+    public ResponseEntity<AppointmentResponse> rejectByOwner(
+            @PathVariable Long id,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        return ResponseEntity.ok(appointmentService.rejectAppointmentByOwner(id, userId));
+    }
+    
+    @PutMapping("/{id}/approve/employee")
     @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<AppointmentResponse> approveByEmployee(
             @PathVariable Long id,
             HttpServletRequest req) {
         Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
         return ResponseEntity.ok(appointmentService.approveAppointmentByEmployee(id, userId));
+    }
+    
+    @PutMapping("/{id}/reject/employee")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<AppointmentResponse> rejectByEmployee(
+            @PathVariable Long id,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        return ResponseEntity.ok(appointmentService.rejectAppointmentByEmployee(id, userId));
+    }
+    
+    @PutMapping("/{id}/cancel")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Void>> cancelAppointment(
+            @PathVariable Long id,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        appointmentService.cancelAppointment(id, userId);
+        return ResponseEntity.ok(ApiResponse.success(null, "Randevu başarıyla iptal edildi"));
     }
     
     @PostMapping("/search")
@@ -107,6 +136,13 @@ public class AppointmentController {
             } catch (Exception e) {
                 // If user is not the owner, fall through to return user appointments
             }
+        }
+        
+        // Check if user is STAFF - return employee appointments
+        try {
+            return ResponseEntity.ok(appointmentService.getEmployeeAppointmentsPage(userId, PageRequest.of(page, size)));
+        } catch (Exception e) {
+            // If user is not an employee, fall through to return customer appointments
         }
         
         // Return user's appointments as a page

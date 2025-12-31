@@ -80,4 +80,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long>,
     List<Appointment> findByReminderSentFalseAndAppointmentTimeBetween(
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
+    
+    List<Appointment> findByEmployeeId(Long employeeId);
+    
+    Page<Appointment> findByEmployeeId(Long employeeId, Pageable pageable);
 }

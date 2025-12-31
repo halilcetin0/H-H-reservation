@@ -1,5 +1,6 @@
 package com.project.appointment.controller;
 
+import com.project.appointment.dto.response.ApiResponse;
 import com.project.appointment.dto.response.BusinessResponse;
 import com.project.appointment.security.JwtService;
 import com.project.appointment.service.FavoriteService;
@@ -11,7 +12,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/favorites")
@@ -22,37 +22,49 @@ public class FavoriteController {
     private final JwtService jwtService;
     
     @PostMapping("/{businessId}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> addFavorite(@PathVariable Long businessId, HttpServletRequest req) {
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<Void>> addFavorite(@PathVariable Long businessId, HttpServletRequest req) {
         Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
-        favoriteService.addFavorite(businessId, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        try {
+            favoriteService.addFavorite(businessId, userId);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success(null, "İşletme favorilere eklendi"));
+        } catch (com.project.appointment.exception.BusinessException e) {
+            // If already favorited, return success (idempotent)
+            if (e.getMessage().contains("already in favorites")) {
+                return ResponseEntity.ok(ApiResponse.success(null, "İşletme zaten favorilerinizde"));
+            }
+            throw e;
+        }
     }
     
     @DeleteMapping("/{businessId}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> removeFavorite(@PathVariable Long businessId, HttpServletRequest req) {
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<Void>> removeFavorite(@PathVariable Long businessId, HttpServletRequest req) {
         Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
         favoriteService.removeFavorite(businessId, userId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null, "İşletme favorilerden kaldırıldı"));
     }
     
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<BusinessResponse>> getFavorites(HttpServletRequest req) {
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<List<BusinessResponse>>> getFavorites(HttpServletRequest req) {
         Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
-        return ResponseEntity.ok(favoriteService.getUserFavorites(userId));
+        List<BusinessResponse> favorites = favoriteService.getUserFavorites(userId);
+        return ResponseEntity.ok(ApiResponse.success(favorites, "Favoriler başarıyla getirildi"));
     }
     
-    @GetMapping("/check/{businessId}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Map<String, Boolean>> checkFavorite(@PathVariable Long businessId, HttpServletRequest req) {
+    @GetMapping("/{businessId}/check")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<Boolean>> checkFavorite(@PathVariable Long businessId, HttpServletRequest req) {
         Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
-        return ResponseEntity.ok(Map.of("isFavorite", favoriteService.isFavorite(businessId, userId)));
+        boolean isFavorite = favoriteService.isFavorite(businessId, userId);
+        return ResponseEntity.ok(ApiResponse.success(isFavorite, "Favori durumu kontrol edildi"));
     }
     
     @GetMapping("/count/{businessId}")
-    public ResponseEntity<Map<String, Long>> getFavoriteCount(@PathVariable Long businessId) {
-        return ResponseEntity.ok(Map.of("count", favoriteService.getFavoriteCount(businessId)));
+    public ResponseEntity<ApiResponse<Long>> getFavoriteCount(@PathVariable Long businessId) {
+        Long count = favoriteService.getFavoriteCount(businessId);
+        return ResponseEntity.ok(ApiResponse.success(count, "Favori sayısı başarıyla getirildi"));
     }
 }

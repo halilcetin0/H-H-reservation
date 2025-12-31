@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -20,6 +21,10 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Page<Review> findByBusinessId(Long businessId, Pageable pageable);
     
     Page<Review> findByEmployeeId(Long employeeId, Pageable pageable);
+    
+    Page<Review> findByCustomerId(Long customerId, Pageable pageable);
+    
+    List<Review> findByCustomerId(Long customerId);
     
     Long countByBusinessId(Long businessId);
     
