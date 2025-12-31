@@ -299,6 +299,143 @@ public class AppointmentService {
                 .map(this::mapToResponse);
     }
     
+    @Transactional
+    public AppointmentResponse cancelAppointment(Long appointmentId, Long userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+        
+        // Check permissions: customer, business owner, or assigned employee
+        boolean isCustomer = appointment.getCustomer().getId().equals(userId);
+        boolean isOwner = appointment.getBusiness().getOwnerId().equals(userId);
+        boolean isEmployee = appointment.getEmployee() != null && 
+                            appointment.getEmployee().getUser() != null &&
+                            appointment.getEmployee().getUser().getId().equals(userId);
+        
+        if (!isCustomer && !isOwner && !isEmployee) {
+            throw new BusinessException("You don't have permission to cancel this appointment");
+        }
+        
+        // Check if appointment can be cancelled
+        if (appointment.getStatus() != AppointmentStatus.PENDING && 
+            appointment.getStatus() != AppointmentStatus.CONFIRMED) {
+            throw new BusinessException("Only PENDING or CONFIRMED appointments can be cancelled");
+        }
+        
+        // Check if appointment is in the past
+        if (appointment.getStartTime().isBefore(LocalDateTime.now())) {
+            throw new BusinessException("Past appointments cannot be cancelled");
+        }
+        
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        appointment.setOwnerApproved(false);
+        appointment.setEmployeeApproved(false);
+        
+        appointment = appointmentRepository.save(appointment);
+        log.info("Appointment {} cancelled by user {}", appointmentId, userId);
+        
+        try {
+            String details = formatAppointmentDetails(appointment);
+            emailService.sendAppointmentCancellationEmail(
+                    appointment.getCustomer().getEmail(),
+                    appointment.getCustomer().getFullName(),
+                    details,
+                    "Cancelled by " + (isCustomer ? "customer" : isOwner ? "business owner" : "employee")
+            );
+        } catch (Exception e) {
+            log.error("Failed to send cancellation email", e);
+        }
+        
+        return mapToResponse(appointment);
+    }
+    
+    @Transactional
+    public AppointmentResponse rejectAppointmentByOwner(Long appointmentId, Long userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+        
+        // Verify user is the business owner
+        if (!appointment.getBusiness().getOwnerId().equals(userId)) {
+            throw new BusinessException("You don't have permission to reject this appointment");
+        }
+        
+        appointment.setOwnerApproved(false);
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        appointment.setCancellationReason("Rejected by business owner");
+        
+        appointment = appointmentRepository.save(appointment);
+        log.info("Appointment {} rejected by owner {}", appointmentId, userId);
+        
+        try {
+            String details = formatAppointmentDetails(appointment);
+            emailService.sendAppointmentCancellationEmail(
+                    appointment.getCustomer().getEmail(),
+                    appointment.getCustomer().getFullName(),
+                    details,
+                    "Rejected by business owner"
+            );
+        } catch (Exception e) {
+            log.error("Failed to send rejection email", e);
+        }
+        
+        return mapToResponse(appointment);
+    }
+    
+    @Transactional
+    public AppointmentResponse rejectAppointmentByEmployee(Long appointmentId, Long userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+        
+        // Verify user is the assigned employee
+        if (appointment.getEmployee() == null || appointment.getEmployee().getUser() == null) {
+            throw new BusinessException("Appointment does not have an assigned employee");
+        }
+        
+        if (!appointment.getEmployee().getUser().getId().equals(userId)) {
+            throw new BusinessException("You don't have permission to reject this appointment");
+        }
+        
+        appointment.setEmployeeApproved(false);
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        appointment.setCancellationReason("Rejected by employee");
+        
+        appointment = appointmentRepository.save(appointment);
+        log.info("Appointment {} rejected by employee {}", appointmentId, userId);
+        
+        try {
+            String details = formatAppointmentDetails(appointment);
+            emailService.sendAppointmentCancellationEmail(
+                    appointment.getCustomer().getEmail(),
+                    appointment.getCustomer().getFullName(),
+                    details,
+                    "Rejected by employee"
+            );
+        } catch (Exception e) {
+            log.error("Failed to send rejection email", e);
+        }
+        
+        return mapToResponse(appointment);
+    }
+    
+    public List<AppointmentResponse> getEmployeeAppointments(Long employeeUserId) {
+        // Find employee by user ID
+        Employee employee = employeeRepository.findByUserId(employeeUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found for this user"));
+        
+        return appointmentRepository.findByEmployeeId(employee.getId())
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    public Page<AppointmentResponse> getEmployeeAppointmentsPage(Long employeeUserId, Pageable pageable) {
+        // Find employee by user ID
+        Employee employee = employeeRepository.findByUserId(employeeUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found for this user"));
+        
+        return appointmentRepository.findByEmployeeId(employee.getId(), pageable)
+                .map(this::mapToResponse);
+    }
+    
     @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void sendAppointmentReminders() {

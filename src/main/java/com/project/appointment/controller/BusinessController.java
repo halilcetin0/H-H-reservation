@@ -31,6 +31,7 @@ public class BusinessController {
     private final EmployeeService employeeService;
     private final WorkScheduleService workScheduleService;
     private final StaffInvitationService staffInvitationService;
+    private final ReviewService reviewService;
     private final JwtService jwtService;
     
     @PostMapping
@@ -311,5 +312,17 @@ public class BusinessController {
         // Business ownership is validated in service layer
         List<WorkScheduleResponse> schedules = workScheduleService.updateEmployeeSchedules(employeeId, request, ownerId);
         return ResponseEntity.ok(ApiResponse.success(schedules, "Çalışma saatleri başarıyla güncellendi"));
+    }
+    
+    // ========== REVIEWS ENDPOINTS ==========
+    
+    @GetMapping("/{businessId}/reviews")
+    public ResponseEntity<ApiResponse<Page<com.project.appointment.dto.response.ReviewResponse>>> getBusinessReviews(
+            @PathVariable Long businessId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<com.project.appointment.dto.response.ReviewResponse> reviews = 
+                reviewService.getBusinessReviews(businessId, PageRequest.of(page, size));
+        return ResponseEntity.ok(ApiResponse.success(reviews, "İşletme yorumları başarıyla getirildi"));
     }
 }

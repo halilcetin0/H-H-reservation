@@ -1,10 +1,12 @@
 package com.project.appointment.controller;
 
 import com.project.appointment.dto.request.EmployeeRequest;
+import com.project.appointment.dto.response.ApiResponse;
 import com.project.appointment.dto.response.EmployeeAnalyticsResponse;
 import com.project.appointment.dto.response.EmployeeResponse;
 import com.project.appointment.security.JwtService;
 import com.project.appointment.service.EmployeeService;
+import com.project.appointment.service.StaffInvitationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import java.util.List;
 public class EmployeeController {
     
     private final EmployeeService employeeService;
+    private final StaffInvitationService invitationService;
     private final JwtService jwtService;
     
     @PostMapping
@@ -64,5 +67,19 @@ public class EmployeeController {
         Long ownerId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
         employeeService.deleteEmployee(id, ownerId);
         return ResponseEntity.noContent().build();
+    }
+    
+    @PostMapping("/accept-invitation")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Object>> acceptInvitation(
+            @RequestParam String token,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Kullanıcı kimlik doğrulaması yapılmadı"));
+        }
+        invitationService.acceptInvitation(token, userId);
+        return ResponseEntity.ok(ApiResponse.success(null, "Davetiye başarıyla kabul edildi. Artık bu işletmede çalışan olarak görev yapabilirsiniz."));
     }
 }

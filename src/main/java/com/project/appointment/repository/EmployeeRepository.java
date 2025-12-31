@@ -17,6 +17,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     
     java.util.Optional<Employee> findByBusinessIdAndUserId(Long businessId, Long userId);
     
+    java.util.Optional<Employee> findByUserId(Long userId);
+    
     @Query("SELECT COUNT(a) FROM Appointment a WHERE a.employee.id = :employeeId")
     Long countAppointmentsByEmployeeId(@Param("employeeId") Long employeeId);
     
