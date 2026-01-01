@@ -1,5 +1,6 @@
 package com.project.appointment.controller;
 
+import com.project.appointment.dto.request.BatchWorkScheduleRequest;
 import com.project.appointment.dto.request.WorkScheduleRequest;
 import com.project.appointment.dto.response.WorkScheduleResponse;
 import com.project.appointment.security.JwtService;
@@ -37,6 +38,15 @@ public class WorkScheduleController {
         return ResponseEntity.ok(workScheduleService.getSchedulesByEmployeeId(employeeId));
     }
     
+    /**
+     * Randevu alırken çalışanın çalışma saatlerini görüntülemek için public endpoint
+     * Sadece aktif (isActive=true) olan çalışma saatlerini döndürür
+     */
+    @GetMapping("/employee/{employeeId}")
+    public ResponseEntity<List<WorkScheduleResponse>> getActiveSchedulesByEmployeeId(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(workScheduleService.getActiveSchedulesByEmployeeId(employeeId));
+    }
+    
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('BUSINESS_OWNER')")
     public ResponseEntity<WorkScheduleResponse> updateWorkSchedule(
@@ -53,5 +63,27 @@ public class WorkScheduleController {
         Long ownerId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
         workScheduleService.deleteWorkSchedule(id, ownerId);
         return ResponseEntity.noContent().build();
+    }
+    
+    /**
+     * Çalışan kendi çalışma saatlerini görüntüleyebilir
+     */
+    @GetMapping("/my-schedules")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<List<WorkScheduleResponse>> getMySchedules(HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        return ResponseEntity.ok(workScheduleService.getMySchedules(userId));
+    }
+    
+    /**
+     * Çalışan kendi çalışma saatlerini güncelleyebilir
+     */
+    @PutMapping("/my-schedules")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<List<WorkScheduleResponse>> updateMySchedules(
+            @Valid @RequestBody BatchWorkScheduleRequest request,
+            HttpServletRequest req) {
+        Long userId = jwtService.getUserIdFromToken(jwtService.resolveToken(req));
+        return ResponseEntity.ok(workScheduleService.updateMySchedules(userId, request));
     }
 }
