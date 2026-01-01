@@ -43,7 +43,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                         .requestMatchers("/api/businesses", "/api/businesses/{id}", "/api/businesses/search").permitAll()
-                        .requestMatchers("/api/services", "/api/employees", "/api/appointments/available-slots").permitAll()
+                        .requestMatchers("/api/services", "/api/employees", "/api/appointments/available-slots", "/api/work-schedules/employee/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

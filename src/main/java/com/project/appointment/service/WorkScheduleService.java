@@ -127,6 +127,70 @@ public class WorkScheduleService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Çalışan kendi çalışma saatlerini güncelleyebilir
+     */
+    @Transactional
+    public List<WorkScheduleResponse> updateMySchedules(Long userId, BatchWorkScheduleRequest request) {
+        Employee employee = employeeRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for this user"));
+        
+        // Delete existing schedules for this employee
+        workScheduleRepository.deleteByEmployeeId(employee.getId());
+        
+        // Create new schedules
+        List<WorkSchedule> newSchedules = request.getSchedules().stream()
+                .filter(item -> item.getIsAvailable() != null && item.getIsAvailable())
+                .map(item -> {
+                    if (item.getStartTime() == null || item.getEndTime() == null) {
+                        throw new BusinessException("Start time and end time are required when isAvailable is true");
+                    }
+                    return WorkSchedule.builder()
+                            .employee(employee)
+                            .dayOfWeek(item.getDayOfWeek())
+                            .startTime(item.getStartTime())
+                            .endTime(item.getEndTime())
+                            .isActive(true)
+                            .build();
+                })
+                .collect(Collectors.toList());
+        
+        List<WorkSchedule> savedSchedules = workScheduleRepository.saveAll(newSchedules);
+        log.info("Employee {} updated {} schedules for themselves", userId, savedSchedules.size());
+        
+        return savedSchedules.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Çalışan kendi çalışma saatlerini görüntüleyebilir
+     */
+    public List<WorkScheduleResponse> getMySchedules(Long userId) {
+        Employee employee = employeeRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found for this user"));
+        
+        return workScheduleRepository.findByEmployeeId(employee.getId())
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Randevu alırken çalışanın aktif çalışma saatlerini görüntülemek için
+     * Sadece aktif (isActive=true) olan çalışma saatlerini döndürür
+     */
+    public List<WorkScheduleResponse> getActiveSchedulesByEmployeeId(Long employeeId) {
+        employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+        
+        return workScheduleRepository.findByEmployeeId(employeeId)
+                .stream()
+                .filter(schedule -> schedule.getIsActive() != null && schedule.getIsActive())
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    
     private WorkScheduleResponse mapToResponse(WorkSchedule schedule) {
         return WorkScheduleResponse.builder()
                 .id(schedule.getId())

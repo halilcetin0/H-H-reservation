@@ -4,20 +4,30 @@ spring:
   
   datasource:
     # Database connection - Environment variables kullanılıyor
+    # Supabase için: Connection pooling endpoint kullanın (port 6543) veya direct connection için pool size'ı 1 yapın
     url: ${DB_URL:jdbc:postgresql://localhost:5432/appointment_db?sslmode=require}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Supabase ücretsiz plan: max 4 direct connections
-      maximum-pool-size: 2
-      minimum-idle: 1
-      connection-timeout: 20000
-      idle-timeout: 300000
-      max-lifetime: 900000
+      # Supabase ücretsiz plan: max 4 direct connections (Session mode)
+      # ÖNEMLİ: Eğer Supabase kullanıyorsanız, connection pooling endpoint kullanın (port 6543)
+      # veya pool size'ı 1'e düşürün
+      maximum-pool-size: 1
+      minimum-idle: 0
+      # Connection timeout'u artırdık - Supabase bağlantıları için
+      connection-timeout: 60000
+      # Idle timeout'u kısalttık - bağlantıları daha hızlı serbest bırakmak için
+      idle-timeout: 30000
+      # Max lifetime'i kısalttık
+      max-lifetime: 300000
       leak-detection-threshold: 60000
       pool-name: AppointmentHikariPool
       register-mbeans: true
+      # Bağlantı sızıntılarını önlemek için
+      connection-test-query: SELECT 1
+      # Bağlantıları daha agresif şekilde kapat
+      keepalive-time: 0
   
   jpa:
     hibernate:
@@ -29,11 +39,14 @@ spring:
         format_sql: true
   
   flyway:
-    enabled: true
+    # Geçici olarak devre dışı - bağlantı sorunları çözülünce tekrar aktif edin
+    enabled: false
     locations: classpath:db/migration
     baseline-on-migrate: true
     validate-on-migrate: false
     out-of-order: true
+    baseline-version: 0
+    clean-disabled: true
   
   data:
     redis:

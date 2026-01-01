@@ -225,7 +225,8 @@ public class AppointmentService {
         DayOfWeek dayOfWeek = DayOfWeek.fromJavaTime(date.getDayOfWeek());
         var scheduleOpt = workScheduleRepository.findByEmployeeIdAndDayOfWeek(employeeId, dayOfWeek);
         
-        if (scheduleOpt.isEmpty()) {
+        // Check if schedule exists and is active
+        if (scheduleOpt.isEmpty() || !scheduleOpt.get().getIsActive()) {
             return new ArrayList<>();
         }
         
